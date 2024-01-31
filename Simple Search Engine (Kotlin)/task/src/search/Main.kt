@@ -19,14 +19,53 @@ enum class MenuOptions {
     INVALID
 }
 
-class Database {
+class IndexedDatabase : Database() {
 
-    private val database = mutableListOf<List<String>>()
+    private val invertedIndex = mutableMapOf<String,MutableList<Int>>()
+    override fun addEntry(str : String){
+        super.addEntry(str)
+        for (field in database.last()) addInvertedIndex(field,database.lastIndex)
+    }
+
+    private fun addInvertedIndex(str : String, index : Int) {
+
+        val duplicate : Int?
+        val key = str.lowercase()
+
+        if (!invertedIndex.contains(key)) {
+            invertedIndex += key to mutableListOf(index)
+        } else {
+            duplicate = invertedIndex[key]?.find { it == index}
+            if (duplicate == null) invertedIndex[key]?.add(index)
+        }
+    }
 
 
-    fun addEntry(entry : List<String>){
+    override fun query(term : String) : List<List<String>> {
+
+        val key = term.lowercase()
+
+        return if (invertedIndex.contains(key))
+            invertedIndex[key]!!.map{ database[it] }
+        else
+            emptyList()
+
+    }
+
+
+}
+
+open class Database {
+
+    protected  val database = mutableListOf<List<String>>()
+
+
+    open fun addEntry(str : String) {
+       val entry = str.split(" ").map { it.filter { !it.isWhitespace()} }// splits entries into first name, last name, email and then removes any excess whitespace in each entry
         database += entry
     }
+
+
 
     fun printEntry(entry : List<String>) {
         println(entry.joinToString(separator = " "))
@@ -36,7 +75,8 @@ class Database {
         for (entry in database) printEntry(entry)
     }
 
-    fun query(term : String, caseInsenitive : Boolean = true) : List<List<String>> {
+
+    open fun query(term : String) : List<List<String>> {
         val query = Regex(term, RegexOption.IGNORE_CASE)
         return  (database.filter {
 
@@ -54,12 +94,8 @@ class Database {
     }
 
     fun addEntriesFromFile(file : File) {
-
         if (!file.exists()) throw Error("File does not exist")
-
-        for (line in file.readLines()) {
-            addEntry(line.split(" ").map { it.filter { !it.isWhitespace()} }) // splits entries into first name, last name, email and then removes any excess whitespace in each entry
-        }
+        file.readLines().forEach { addEntry(it) }
     }
 
 }
@@ -74,7 +110,7 @@ class DatabaseMenu(val db: Database) {
         println("Enter all people:")
 
         for (i in 1..numOfEntries) {
-            db.addEntry(readln().split(" ").map { it.filter { !it.isWhitespace()} }) // splits entries into first name, last name, email and then removes any excess whitespace in each entry
+            db.addEntry(readln())
         }
 
     }
@@ -120,7 +156,6 @@ class DatabaseMenu(val db: Database) {
     }
 
 
-
 }
 
 
@@ -128,7 +163,7 @@ class DatabaseMenu(val db: Database) {
 
 fun main(args : Array<String>) {
 
-    val db = Database()
+    val db = IndexedDatabase()
     val menu = DatabaseMenu(db)
     var mOption : MenuOptions
 
